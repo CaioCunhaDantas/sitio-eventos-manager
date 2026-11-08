@@ -2,6 +2,8 @@
 
 import streamlit as st
 
+from database import cpf as cpf_util
+
 
 def botao_com_confirmacao(chave: str, rotulo: str, pergunta: str, rotulo_sim: str,
                           icone: str | None = None) -> bool:
@@ -50,15 +52,34 @@ def erros_da_reserva(hora_inicio: str, hora_fim: str, tipo_festa: str | None,
     return erros
 
 
-def campos_endereco(chave: str, cliente: dict | None = None) -> tuple[str, str, str]:
-    """Os 3 campos de endereço (rua e número / bairro / cidade), já preenchidos se houver."""
+def campos_cadastro(chave: str, cliente: dict | None = None) -> tuple[str, str, str, str]:
+    """CPF + endereço (rua e número / bairro / cidade), já preenchidos se houver.
+
+    Devolve (cpf, endereco, bairro, cidade).
+    """
     cliente = cliente or {}
+    cpf = st.text_input("CPF", value=cpf_util.formatar(cliente.get("cpf")) if cliente.get("cpf")
+                        else "", placeholder="000.000.000-00", key=f"{chave}_cpf")
     endereco = st.text_input("Endereço (rua e número)", value=cliente.get("endereco") or "",
                              key=f"{chave}_endereco")
     c1, c2 = st.columns(2)
     bairro = c1.text_input("Bairro", value=cliente.get("bairro") or "", key=f"{chave}_bairro")
     cidade = c2.text_input("Cidade", value=cliente.get("cidade") or "", key=f"{chave}_cidade")
-    return endereco, bairro, cidade
+    return cpf, endereco, bairro, cidade
+
+
+def erros_do_cadastro(cpf: str | None, endereco: str | None, bairro: str | None,
+                      cidade: str | None, obrigatorio: bool) -> list[str]:
+    """CPF (se preenchido) precisa ser válido; na reserva completa, tudo é obrigatório."""
+    erros = []
+    if cpf and cpf.strip() and not cpf_util.valido(cpf):
+        erros.append("CPF inválido. Confira os números (os dois últimos não batem).")
+    if obrigatorio:
+        if not (cpf and cpf.strip()):
+            erros.append("Informe o CPF.")
+        if not all(x and x.strip() for x in (endereco, bairro, cidade)):
+            erros.append("Preencha o endereço completo: rua e número, bairro e cidade.")
+    return erros
 
 
 def guardar_aviso(texto: str) -> None:

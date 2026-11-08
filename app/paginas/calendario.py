@@ -29,6 +29,8 @@ CSS_CALENDARIO = """
 .cal .festa { margin-top: 4px; padding: 4px 6px; border-radius: 6px; font-size: 0.78rem;
               line-height: 1.2; overflow-wrap: anywhere; }
 .cal .festa b { font-weight: 600; }
+.cal .festa .nome { display: block; }
+.cal .festa .curto { display: none; }
 .cal .festa .valor { display: block; font-weight: 600; }
 .cal .festa.pre_reserva { background: #FFFFFF; color: #5F6553; border: 1px dashed #8A9078; }
 /* Cores por situação do pagamento */
@@ -47,8 +49,53 @@ CSS_CALENDARIO = """
 .legenda .l-falta::before     { background: #C8961E; }
 .legenda .l-sem_sinal::before { background: #C0603A; }
 .legenda .l-pre_reserva::before { background: #FFFFFF; box-shadow: inset 0 0 0 1px #8A9078; }
+/* ---------- Celular (tela estreita) ----------
+   Cada dia mostra só a cor da situação e o primeiro nome;
+   os detalhes ficam na lista "Festas do mês", logo abaixo. */
+@media (max-width: 640px) {
+  .cal th { font-size: 0.6rem; letter-spacing: 0; text-align: center; padding: 0 1px 6px; }
+  .cal td { height: 58px; padding: 2px; text-align: center; }
+  .cal .num { width: 1.6em; height: 1.6em; font-size: 0.8rem; }
+  .cal .festa { margin-top: 2px; padding: 2px 3px; font-size: 0.62rem; border-radius: 4px; }
+  .cal .festa .nome, .cal .festa .det { display: none; }
+  .cal .festa .curto { display: block; white-space: nowrap; overflow: hidden;
+                       text-overflow: ellipsis; }
+  .legenda { gap: 6px 14px; font-size: 0.72rem; }
+}
 </style>
 """
+
+# Linhas de botões/cartões que devem ficar lado a lado também no celular
+# (por padrão o Streamlit empilha as colunas em telas estreitas).
+CSS_LADO_A_LADO = """
+<style>
+@media (max-width: 640px) {
+  /* Navegação: ‹ Mês Ano › numa linha só */
+  .st-key-navegacao [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 6px; }
+  .st-key-navegacao [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; }
+  .st-key-navegacao [data-testid="stColumn"]:nth-child(1),
+  .st-key-navegacao [data-testid="stColumn"]:nth-child(4) { flex: 0 0 40px !important; }
+  .st-key-navegacao [data-testid="stColumn"]:nth-child(2) { flex: 1.5 1 0 !important; }
+  .st-key-navegacao [data-testid="stColumn"]:nth-child(3) { flex: 1 1 0 !important; }
+  .st-key-navegacao button { padding: 0.3rem !important; }
+  /* o texto do seletor fica num campo input; a regra global deixaria com 1.3rem */
+  .st-key-navegacao input { font-size: 0.95rem !important; }
+
+  /* Cartões: um embaixo do outro, cada um numa linha fina (rótulo à esquerda, valor à direita) */
+  .st-key-cartoes [data-testid="stHorizontalBlock"] { gap: 6px; }
+  .st-key-cartoes [data-testid="stMetric"] { padding: 0.4rem 0.8rem; }
+  .st-key-cartoes [data-testid="stMetric"] > div { display: flex; justify-content: space-between;
+                                                   align-items: center; gap: 0.5rem; }
+  .st-key-cartoes [data-testid="stMetricValue"] { width: auto; }
+  .st-key-cartoes [data-testid="stMetricValue"] > div { font-size: 1.15rem; }
+}
+</style>
+"""
+
+
+def primeira_minuscula(texto: str) -> str:
+    """'Falta R$ 10,00' -> 'falta R$ 10,00' (o .lower() estragaria o 'R$')."""
+    return texto[:1].lower() + texto[1:]
 
 
 def mes_exibido() -> tuple[int, int]:
@@ -106,8 +153,12 @@ def html_celula(dia: date, mes: int, hoje: date, reserva: dict | None) -> str:
         valor = texto_situacao(reserva).replace("R$ ", "R$" + chr(160))
         tipo = f"{escape(reserva['tipo_festa'])}<br>" if reserva["tipo_festa"] else ""
         # escape(): impede que um nome com "<" ou ">" quebre o HTML
-        conteudo = (f'<div class="festa {situacao}"><b>{escape(reserva["cliente"])}</b><br>'
-                    f'{tipo}<span class="valor">{valor}</span></div>')
+        nome = escape(reserva["cliente"])
+        primeiro_nome = escape(reserva["cliente"].split()[0])
+        # .nome/.det aparecem no computador; .curto (só o primeiro nome) no celular
+        conteudo = (f'<div class="festa {situacao}"><b class="nome">{nome}</b>'
+                    f'<b class="curto">{primeiro_nome}</b>'
+                    f'<span class="det">{tipo}<span class="valor">{valor}</span></span></div>')
     return f'<td class="{" ".join(classes)}"><span class="num">{dia.day}</span>{conteudo}</td>'
 
 
@@ -133,7 +184,8 @@ def calendario_do_mes() -> None:
             mudar_mes(0)
             st.rerun()
 
-    m1, m2, m3 = st.columns(3)
+    # key= vira a classe CSS "st-key-cartoes" (usada no CSS_LADO_A_LADO)
+    m1, m2, m3 = st.container(key="cartoes").columns(3)
     m1.metric("Festas", len(do_mes), border=True, help="Festas marcadas neste mês")
     m2.metric("Dias livres", livres, border=True, help="Dias deste mês, de hoje em diante, sem festa")
     # "or 0": pré-reserva sem valor combinado ainda não tem saldo
@@ -250,7 +302,9 @@ ano_atual_exibido, mes_atual_exibido = mes_exibido()
 st.session_state["sel_mes"] = mes_atual_exibido
 st.session_state["sel_ano"] = ano_atual_exibido
 
-b_ant, s_mes, s_ano, b_prox = st.columns([0.7, 2, 1.4, 0.7], vertical_alignment="bottom")
+st.html(CSS_LADO_A_LADO)
+b_ant, s_mes, s_ano, b_prox = st.container(key="navegacao").columns(
+    [0.7, 2, 1.4, 0.7], vertical_alignment="bottom")
 # Setas só com ícone (o texto aparece ao passar o mouse, pelo help=)
 b_ant.button("", icon=":material/chevron_left:", help="Mês anterior", on_click=mudar_mes,
              args=(-1,), width="stretch")
@@ -277,5 +331,5 @@ for r in festas:
              "pre_reserva": ":material/pending:"}[situacao_pagamento(r)]
     tipo = f"{r['tipo_festa']} · " if r["tipo_festa"] else ""
     with st.expander(f"{data_com_dia_semana(r['data_festa'])} — {r['cliente']} — "
-                     f"{tipo}{texto_situacao(r).lower()}", icon=icone):
+                     f"{tipo}{primeira_minuscula(texto_situacao(r))}", icon=icone):
         detalhes_da_festa(r)

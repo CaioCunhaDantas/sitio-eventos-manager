@@ -2,7 +2,8 @@ from datetime import date
 
 import streamlit as st
 
-from app.componentes import campos_endereco, erros_da_reserva, guardar_aviso, mostrar_aviso
+from app.componentes import (campos_cadastro, erros_da_reserva, erros_do_cadastro,
+                             guardar_aviso, mostrar_aviso)
 from app.formatacao import FORMAS_TEXTO, HORARIOS, data_extenso, para_centavos
 from database import repositorio as repo
 
@@ -47,26 +48,27 @@ modo = st.radio("Quem vai alugar?", [JA_VEIO, NOVO] if clientes else [NOVO],
                 horizontal=True, label_visibility="collapsed", key=chave("modo"))
 
 id_cliente = nome = telefone = email = None
-endereco = bairro = cidade = None
-precisa_endereco = False  # mostra os campos de endereço?
+cpf = endereco = bairro = cidade = None
+precisa_cadastro = False  # mostra (e exige) CPF e endereço?
 
 if modo == JA_VEIO:
     id_cliente = st.selectbox("Escolha o cliente", list(por_id),
                               format_func=lambda i: f"{por_id[i]['nome']} — {por_id[i]['telefone']}",
                               index=None, placeholder="Clique aqui e digite o nome",
                               key=chave("cliente"))
-    # Cliente antigo sem endereço: na reserva completa, pede para completar
-    if id_cliente and not eh_pre and not repo.endereco_completo(por_id[id_cliente]):
-        st.caption("Este cliente ainda não tem o endereço completo. Preencha abaixo:")
-        precisa_endereco = True
-        endereco, bairro, cidade = campos_endereco(chave(f"end_{id_cliente}"), por_id[id_cliente])
+    # Cliente antigo sem CPF/endereço: na reserva completa, pede para completar
+    if id_cliente and not eh_pre and not repo.cadastro_completo(por_id[id_cliente]):
+        st.caption("Faltam dados no cadastro deste cliente (CPF ou endereço). Preencha abaixo:")
+        precisa_cadastro = True
+        cpf, endereco, bairro, cidade = campos_cadastro(chave(f"cad_{id_cliente}"),
+                                                        por_id[id_cliente])
 else:
     nome = st.text_input("Nome", key=chave("nome"))
     telefone = st.text_input("Telefone / WhatsApp", key=chave("telefone"))
     if not eh_pre:
         email = st.text_input("E-mail (se tiver)", key=chave("email"))
-        precisa_endereco = True
-        endereco, bairro, cidade = campos_endereco(chave("end_novo"))
+        precisa_cadastro = True
+        cpf, endereco, bairro, cidade = campos_cadastro(chave("cad_novo"))
 
 # ---------- 3 e 4. Festa e valores (só na reserva completa) ----------
 hora_inicio, hora_fim = "09:00", "19:00"
@@ -109,8 +111,8 @@ if st.button(rotulo, type="primary", width="stretch", disabled=bool(ocupada),
         erros.append("Escreva o nome de quem vai alugar.")
     if modo == NOVO and not (telefone and telefone.strip()):
         erros.append("Escreva o telefone de quem vai alugar.")
-    if precisa_endereco and not all(x and x.strip() for x in (endereco, bairro, cidade)):
-        erros.append("Preencha o endereço completo: rua e número, bairro e cidade.")
+    if precisa_cadastro:
+        erros += erros_do_cadastro(cpf, endereco, bairro, cidade, obrigatorio=True)
     erros += erros_da_reserva(hora_inicio, hora_fim, tipo, convidados, valor_total,
                               valor_sinal, completa=not eh_pre)
     if sinal_pago and not valor_sinal:
@@ -123,15 +125,12 @@ if st.button(rotulo, type="primary", width="stretch", disabled=bool(ocupada),
         try:
             if modo == NOVO:
                 id_cliente = repo.criar_cliente(nome, telefone, email, None,
-                                                endereco, bairro, cidade)
+                                                endereco, bairro, cidade, cpf)
                 nome_cliente = nome.strip()
             else:
-                cliente = por_id[id_cliente]
-                nome_cliente = cliente["nome"]
-                if precisa_endereco:  # completa o endereço do cliente antigo
-                    repo.atualizar_cliente(id_cliente, cliente["nome"], cliente["telefone"],
-                                           cliente["email"], cliente["observacoes"],
-                                           endereco, bairro, cidade)
+                nome_cliente = por_id[id_cliente]["nome"]
+                if precisa_cadastro:  # completa CPF/endereço do cliente antigo
+                    repo.completar_cadastro(id_cliente, endereco, bairro, cidade, cpf)
             id_reserva = repo.criar_reserva(
                 id_cliente, dia, hora_inicio, hora_fim, tipo, convidados,
                 para_centavos(valor_total), para_centavos(valor_sinal) or 0, obs,
@@ -142,6 +141,9 @@ if st.button(rotulo, type="primary", width="stretch", disabled=bool(ocupada),
         except repo.DataOcupadaError:
             st.error("Esse dia acabou de ser ocupado por outra festa. Escolha outro dia.",
                      icon=":material/event_busy:")
+        except repo.CpfDuplicadoError as erro:
+            st.error(f"Esse CPF já está cadastrado para **{erro.args[0]}**. "
+                     "Se for a mesma pessoa, escolha \"Já alugou antes\".")
         else:
             st.session_state["nova_reserva_versao"] += 1
             if eh_pre:

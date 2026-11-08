@@ -11,6 +11,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import date
 
+from database import cpf as cpf_util
 from database.criar_banco import conectar
 
 
@@ -20,6 +21,14 @@ class DataOcupadaError(Exception):
 
 class DadosIncompletosError(Exception):
     """Pré-reserva sem tipo/convidados/valor: não pode receber pagamento nem ser confirmada."""
+
+
+class CpfInvalidoError(Exception):
+    """CPF com dígitos verificadores errados (provável erro de digitação)."""
+
+
+class CpfDuplicadoError(Exception):
+    """Já existe um cliente com esse CPF. args[0] = nome dele."""
 
 
 @contextmanager
@@ -51,55 +60,108 @@ def _vazio_para_none(texto: str | None) -> str | None:
 # Clientes
 # ============================================================
 
+def _preparar_cpf(cpf: str | None) -> str | None:
+    """Vazio -> None; senão confere os dígitos e devolve só os 11 números."""
+    if not cpf or not cpf.strip():
+        return None
+    if not cpf_util.valido(cpf):
+        raise CpfInvalidoError(cpf)
+    return cpf_util.limpar(cpf)
+
+
+def _erro_cpf_duplicado(c: sqlite3.Connection, cpf: str) -> CpfDuplicadoError:
+    dono = c.execute("SELECT nome FROM cliente WHERE cpf = ?", (cpf,)).fetchone()
+    return CpfDuplicadoError(dono["nome"] if dono else "outro cliente")
+
+
 def listar_clientes(busca: str = "") -> list[dict]:
     termo = f"%{busca.strip()}%"
+    # Busca por CPF funciona com ou sem pontuação ("123.456" ou "123456")
+    termo_cpf = f"%{cpf_util.limpar(busca)}%" if cpf_util.limpar(busca) else termo
     with _conexao() as c:
         return _lista(c.execute(
             """
             SELECT * FROM cliente
             WHERE nome LIKE ? OR telefone LIKE ? OR bairro LIKE ? OR cidade LIKE ?
+                  OR cpf LIKE ?
             ORDER BY nome COLLATE NOCASE
             """,
-            (termo, termo, termo, termo),
+            (termo, termo, termo, termo, termo_cpf),
         ))
 
 
 def criar_cliente(nome: str, telefone: str, email: str | None = None,
                   observacoes: str | None = None, endereco: str | None = None,
-                  bairro: str | None = None, cidade: str | None = None) -> int:
+                  bairro: str | None = None, cidade: str | None = None,
+                  cpf: str | None = None) -> int:
+    cpf_limpo = _preparar_cpf(cpf)
     with _conexao() as c:
-        cursor = c.execute(
-            """
-            INSERT INTO cliente (nome, telefone, email, observacoes, endereco, bairro, cidade)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (nome.strip(), telefone.strip(), _vazio_para_none(email),
-             _vazio_para_none(observacoes), _vazio_para_none(endereco),
-             _vazio_para_none(bairro), _vazio_para_none(cidade)),
-        )
+        try:
+            cursor = c.execute(
+                """
+                INSERT INTO cliente (nome, telefone, email, observacoes, endereco,
+                                     bairro, cidade, cpf)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (nome.strip(), telefone.strip(), _vazio_para_none(email),
+                 _vazio_para_none(observacoes), _vazio_para_none(endereco),
+                 _vazio_para_none(bairro), _vazio_para_none(cidade), cpf_limpo),
+            )
+        except sqlite3.IntegrityError as erro:
+            if "cliente.cpf" in str(erro):
+                raise _erro_cpf_duplicado(c, cpf_limpo) from erro
+            raise
         return cursor.lastrowid
 
 
 def atualizar_cliente(id_cliente: int, nome: str, telefone: str,
                       email: str | None = None, observacoes: str | None = None,
                       endereco: str | None = None, bairro: str | None = None,
-                      cidade: str | None = None) -> None:
+                      cidade: str | None = None, cpf: str | None = None) -> None:
+    cpf_limpo = _preparar_cpf(cpf)
     with _conexao() as c:
-        c.execute(
-            """
-            UPDATE cliente
-            SET nome = ?, telefone = ?, email = ?, observacoes = ?,
-                endereco = ?, bairro = ?, cidade = ?
-            WHERE id = ?
-            """,
-            (nome.strip(), telefone.strip(), _vazio_para_none(email),
-             _vazio_para_none(observacoes), _vazio_para_none(endereco),
-             _vazio_para_none(bairro), _vazio_para_none(cidade), id_cliente),
-        )
+        try:
+            c.execute(
+                """
+                UPDATE cliente
+                SET nome = ?, telefone = ?, email = ?, observacoes = ?,
+                    endereco = ?, bairro = ?, cidade = ?, cpf = ?
+                WHERE id = ?
+                """,
+                (nome.strip(), telefone.strip(), _vazio_para_none(email),
+                 _vazio_para_none(observacoes), _vazio_para_none(endereco),
+                 _vazio_para_none(bairro), _vazio_para_none(cidade), cpf_limpo, id_cliente),
+            )
+        except sqlite3.IntegrityError as erro:
+            if "cliente.cpf" in str(erro):
+                raise _erro_cpf_duplicado(c, cpf_limpo) from erro
+            raise
+
+
+def completar_cadastro(id_cliente: int, endereco: str, bairro: str, cidade: str,
+                       cpf: str) -> None:
+    """Preenche só endereço e CPF (usado na Nova reserva), sem tocar nos outros campos."""
+    cpf_limpo = _preparar_cpf(cpf)
+    with _conexao() as c:
+        try:
+            c.execute(
+                "UPDATE cliente SET endereco = ?, bairro = ?, cidade = ?, cpf = ? WHERE id = ?",
+                (_vazio_para_none(endereco), _vazio_para_none(bairro),
+                 _vazio_para_none(cidade), cpf_limpo, id_cliente),
+            )
+        except sqlite3.IntegrityError as erro:
+            if "cliente.cpf" in str(erro):
+                raise _erro_cpf_duplicado(c, cpf_limpo) from erro
+            raise
 
 
 def endereco_completo(cliente: dict) -> bool:
     return all(cliente.get(campo) for campo in ("endereco", "bairro", "cidade"))
+
+
+def cadastro_completo(cliente: dict) -> bool:
+    """Tem tudo o que a reserva completa exige: endereço e CPF."""
+    return endereco_completo(cliente) and bool(cliente.get("cpf"))
 
 
 # ============================================================

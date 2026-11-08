@@ -22,6 +22,7 @@ SENHA_DEMO = "demo1234"  # só vale para o demo.db, nunca use no banco real
 os.environ["SITIO_DB"] = str(CAMINHO_DEMO)
 
 from database import repositorio as repo  # noqa: E402
+from database.cpf import calcular_digitos  # noqa: E402
 from database.criar_banco import criar_banco  # noqa: E402
 from database.usuarios import definir_senha  # noqa: E402
 
@@ -32,14 +33,20 @@ def main() -> None:
     definir_senha("Demonstração", SENHA_DEMO)
 
     hoje = date.today()
+    def cpf_ficticio(nove: str) -> str:
+        """CPF inventado, mas com dígitos verificadores corretos."""
+        return nove + calcular_digitos(nove)
+
     ana = repo.criar_cliente("Ana Souza", "21 99999-0000", observacoes="Indicação da vizinha",
                              endereco="Rua das Flores, 120", bairro="Tijuca",
-                             cidade="Rio de Janeiro")
+                             cidade="Rio de Janeiro", cpf=cpf_ficticio("123456789"))
     bruno = repo.criar_cliente("Bruno Lima", "21 98888-1111", "bruno@exemplo.com",
-                               endereco="Av. Central, 45", bairro="Centro", cidade="Niterói")
+                               endereco="Av. Central, 45", bairro="Centro", cidade="Niterói",
+                               cpf=cpf_ficticio("987654321"))
     carla = repo.criar_cliente("Carla Mendes", "21 97777-2222",
                                endereco="Rua do Sol, 8", bairro="Campo Grande",
-                               cidade="Rio de Janeiro")
+                               cidade="Rio de Janeiro", cpf=cpf_ficticio("246813579"))
+    # Daniel: cadastro antigo, ainda sem CPF (a Nova reserva pede para completar)
     daniel = repo.criar_cliente("Daniel Rocha", "21 96666-3333",
                                 endereco="Estrada Velha, 300", bairro="Guaratiba",
                                 cidade="Rio de Janeiro")

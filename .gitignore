@@ -3,6 +3,7 @@
 *.db-journal
 *.sqlite
 backups/
+logs/
 
 # Configuração local do Claude Code
 .claude/

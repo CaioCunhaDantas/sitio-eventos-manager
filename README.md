@@ -75,14 +75,20 @@ sitio-eventos-manager/
 
 ## 🚀 Como executar
 
-> Instruções serão adicionadas assim que o MVP estiver pronto.
+**Para testar no seu computador** (com dados fictícios de demonstração):
 
 ```bash
 git clone https://github.com/CaioCunhaDantas/sitio-eventos-manager.git
 cd sitio-eventos-manager
-pip install -r requirements.txt
-streamlit run app/main.py
+py -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+py -m database.dados_exemplo
+$env:SITIO_DB = "database/demo.db"; .venv\Scripts\streamlit run app/main.py
 ```
+
+**Testes automáticos:** `py -m unittest -v`
+
+**Uso real, ligado 24h e acessível pelo celular:** veja [docs/implantacao.md](docs/implantacao.md).
 
 ---
 

@@ -102,6 +102,31 @@ class TestRepositorio(unittest.TestCase):
         self.assertTrue(repo.endereco_completo(bruno))
         self.assertFalse(repo.endereco_completo(repo.listar_clientes("Ana")[0]))
 
+    # --- CPF ---
+    def test_cpf_valido_e_guardado_so_com_numeros(self):
+        id_bruno = repo.criar_cliente("Bruno", "2188", cpf="529.982.247-25")
+        bruno = repo.listar_clientes("529.982")[0]  # busca com pontuação
+        self.assertEqual((bruno["id"], bruno["cpf"]), (id_bruno, "52998224725"))
+
+    def test_cpf_com_digito_errado_e_recusado(self):
+        with self.assertRaises(repo.CpfInvalidoError):
+            repo.criar_cliente("Bruno", "2188", cpf="529.982.247-26")
+        with self.assertRaises(repo.CpfInvalidoError):
+            repo.criar_cliente("Bruno", "2188", cpf="111.111.111-11")
+
+    def test_cpf_repetido_diz_quem_ja_tem(self):
+        repo.criar_cliente("Bruno", "2188", cpf="52998224725")
+        with self.assertRaises(repo.CpfDuplicadoError) as erro:
+            repo.criar_cliente("Carlos", "2177", cpf="529.982.247-25")
+        self.assertEqual(erro.exception.args[0], "Bruno")
+
+    def test_completar_cadastro_nao_apaga_outros_dados(self):
+        repo.atualizar_cliente(self.cliente, "Ana", "21999990000", "ana@x.com", "VIP")
+        repo.completar_cadastro(self.cliente, "Rua A, 1", "Centro", "Rio", "52998224725")
+        ana = repo.listar_clientes("Ana")[0]
+        self.assertEqual((ana["email"], ana["observacoes"]), ("ana@x.com", "VIP"))
+        self.assertTrue(repo.cadastro_completo(ana))
+
     # --- pré-reserva ---
     def test_pre_reserva_so_com_o_dia_segura_a_data(self):
         repo.criar_reserva(self.cliente, DIA)  # sem tipo, convidados nem valor
@@ -129,6 +154,27 @@ class TestRepositorio(unittest.TestCase):
         repo.registrar_pagamento(id_pre, 150_000, DIA, "sinal", "pix")
         self.assertEqual(repo.reserva_na_data(DIA)["status"], "confirmada")
         self.assertEqual(repo.total_a_receber(), 350_000)
+
+
+class TestBackup(unittest.TestCase):
+    def test_backup_copia_os_dados_e_mantem_so_os_mais_recentes(self):
+        from database.backup import fazer_backup
+
+        CAMINHO_BANCO.unlink(missing_ok=True)
+        criar_banco()
+        repo.criar_cliente("Ana", "2199")
+        pasta = Path(tempfile.mkdtemp())
+        for i in range(3):  # simula backups antigos
+            (pasta / f"sitio_2000-01-0{i + 1}_000000.db").write_bytes(b"")
+
+        criado = fazer_backup(pasta, manter=2)
+
+        copia = sqlite3.connect(criado)
+        self.assertEqual(copia.execute("SELECT nome FROM cliente").fetchone()[0], "Ana")
+        copia.close()
+        restantes = sorted(p.name for p in pasta.glob("sitio_*.db"))
+        self.assertEqual(len(restantes), 2)
+        self.assertIn(criado.name, restantes)  # o novo nunca é apagado
 
 
 class TestMigracao(unittest.TestCase):
@@ -162,7 +208,7 @@ class TestMigracao(unittest.TestCase):
         reserva = repo.reserva_na_data(DIA)
         self.assertEqual((reserva["cliente"], reserva["total_pago"]), ("Ana", 500))
         # Colunas novas existem e a pré-reserva incompleta passou a ser aceita
-        repo.criar_cliente("Bruno", "2188", bairro="Centro")
+        repo.criar_cliente("Bruno", "2188", bairro="Centro", cpf="52998224725")
         repo.criar_reserva(1, date(2030, 6, 1))
         # A regra de uma festa por dia continua valendo depois da migração
         with self.assertRaises(repo.DataOcupadaError):

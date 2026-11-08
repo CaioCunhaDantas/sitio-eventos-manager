@@ -29,8 +29,15 @@ CREATE TABLE IF NOT EXISTS cliente (
     -- Opcional no banco: numa pré-reserva ainda não temos esses dados.
     endereco    TEXT,                          -- rua e número
     bairro      TEXT,
-    cidade      TEXT
+    cidade      TEXT,
+    -- CPF só com os 11 números (a validação dos dígitos é feita no Python,
+    -- em database/cpf.py). Opcional no banco: a pré-reserva não pede.
+    cpf         TEXT    CHECK (cpf IS NULL OR (length(cpf) = 11 AND cpf NOT GLOB '*[^0-9]*'))
 ) STRICT;
+
+-- Um CPF não pode aparecer em dois clientes (evita cadastro duplicado).
+-- "WHERE cpf IS NOT NULL": vários clientes podem estar ainda SEM CPF.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_cpf ON cliente (cpf) WHERE cpf IS NOT NULL;
 
 -- -------------------------------------------------------------
 -- Reserva: uma festa em uma data

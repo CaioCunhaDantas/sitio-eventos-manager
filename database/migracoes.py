@@ -10,7 +10,7 @@ Para mudar o banco no futuro:
   3. aumente VERSAO_ATUAL.
 """
 
-VERSAO_ATUAL = 2
+VERSAO_ATUAL = 3
 
 # versão de destino -> script SQL que leva da versão anterior até ela
 MIGRACOES: dict[int, str] = {
@@ -65,5 +65,14 @@ MIGRACOES: dict[int, str] = {
     PRAGMA user_version = 2;
     COMMIT;
     PRAGMA foreign_keys = ON;
+    """,
+    # v2 -> v3: CPF do cliente
+    3: """
+    BEGIN;
+    ALTER TABLE cliente ADD COLUMN cpf TEXT
+        CHECK (cpf IS NULL OR (length(cpf) = 11 AND cpf NOT GLOB '*[^0-9]*'));
+    CREATE UNIQUE INDEX ux_cliente_cpf ON cliente (cpf) WHERE cpf IS NOT NULL;
+    PRAGMA user_version = 3;
+    COMMIT;
     """,
 }

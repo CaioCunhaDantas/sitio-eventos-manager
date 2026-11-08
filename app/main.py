@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 
 from app.estilo import aplicar_estilo
+from app.protecao_login import ControleDeTentativas
 from database.criar_banco import criar_banco
 from database.usuarios import existe_usuario, verificar_senha
 
@@ -30,17 +31,25 @@ def preparar_banco() -> None:
 
 preparar_banco()
 
-# Proteção contra "chute" de senha: depois de MAX_TENTATIVAS erradas seguidas,
-# o login fica bloqueado por TEMPO_BLOQUEIO.
-MAX_TENTATIVAS = 5
-TEMPO_BLOQUEIO = timedelta(minutes=5)
-
 
 @st.cache_resource
-def tentativas_de_login() -> dict:
-    """Contador compartilhado por TODAS as abas/navegadores (fica na memória do
-    servidor). Se fosse por aba, bastaria abrir outra aba para tentar de novo."""
-    return {"erros": 0, "bloqueado_ate": None}
+def controle_de_tentativas() -> ControleDeTentativas:
+    """Um controle só para o servidor inteiro (vale para todas as abas)."""
+    return ControleDeTentativas(max_tentativas=5, tempo_bloqueio=timedelta(minutes=5))
+
+
+def ip_do_visitante() -> str:
+    """IP de quem está acessando.
+
+    Na nuvem, o Caddy fica na frente do sistema e informa o IP real no
+    cabeçalho X-Forwarded-For (ele descarta o valor que vier do visitante,
+    então não dá para falsificar). Sem Caddy (PC de casa), usa o IP direto.
+    """
+    encaminhado = st.context.headers.get("X-Forwarded-For")
+    if encaminhado:
+        return encaminhado.split(",")[0].strip()
+    ip = getattr(st.context, "ip_address", None)
+    return ip if isinstance(ip, str) and ip else "local"
 
 
 def tela_login() -> None:
@@ -49,13 +58,15 @@ def tela_login() -> None:
     if not existe_usuario():
         st.warning(
             "Ainda não tem nenhuma senha cadastrada.  \n"
-            "No terminal, rode: `py -m database.criar_usuario`"
+            "No terminal, rode: `py -m database.criar_usuario`  \n"
+            "(na nuvem: `docker compose exec app python -m database.criar_usuario`)"
         )
         return
 
-    controle = tentativas_de_login()
-    bloqueado_ate = controle["bloqueado_ate"]
-    if bloqueado_ate and datetime.now() < bloqueado_ate:
+    controle = controle_de_tentativas()
+    ip = ip_do_visitante()
+    bloqueado_ate = controle.bloqueado_ate(ip)
+    if bloqueado_ate:
         minutos = max(1, round((bloqueado_ate - datetime.now()).total_seconds() / 60))
         st.error(f"Muitas senhas erradas seguidas. Espere {minutos} minuto(s) e tente de novo.",
                  icon=":material/lock_clock:")
@@ -69,19 +80,14 @@ def tela_login() -> None:
     if entrar:
         nome = verificar_senha(senha)
         if nome:
-            controle["erros"] = 0
-            controle["bloqueado_ate"] = None
+            controle.registrar_acerto(ip)
             st.session_state["usuario"] = nome
             st.rerun()  # recarrega a página, agora com o menu
         else:
             time.sleep(1)  # cada tentativa errada demora: chutar senhas fica lento
-            controle["erros"] += 1
-            if controle["erros"] >= MAX_TENTATIVAS:
-                controle["erros"] = 0
-                controle["bloqueado_ate"] = datetime.now() + TEMPO_BLOQUEIO
-                st.rerun()
+            if controle.registrar_erro(ip):
+                st.rerun()  # acabou de bloquear: mostra o aviso de bloqueio
             st.error("Senha errada. Tente de novo.")
-
 
 def sair() -> None:
     st.session_state.pop("usuario", None)

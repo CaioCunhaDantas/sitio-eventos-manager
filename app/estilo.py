@@ -25,6 +25,27 @@ button[data-testid^="stBaseButton"] p {
 [data-testid="stMetricValue"] > div {
     font-size: 1.5rem;
 }
+/* Celular: o menu do topo vira um botão no canto. Escreve "Menu" ao lado
+   do ícone para ficar claro onde tocar. */
+button[data-testid="stExpandSidebarButton"] {
+    width: auto !important;
+    padding: 0.3rem 0.7rem !important;
+    border: 1px solid #D5DCC2 !important;
+    border-radius: 8px !important;
+}
+button[data-testid="stExpandSidebarButton"]::after {
+    content: "Menu";
+    font-size: 1.05rem;
+    margin-left: 0.4rem;
+    color: #2E3324;
+}
+/* Menu lateral (celular) com letra grande e espaço para o dedo */
+[data-testid="stSidebarNavLink"] {
+    padding: 0.6rem 0.8rem !important;
+}
+[data-testid="stSidebarNavLink"] span {
+    font-size: 1.25rem !important;
+}
 /* Títulos mais leves */
 h1 { font-weight: 600 !important; letter-spacing: -0.01em; }
 h2, h3 { font-weight: 600 !important; }
