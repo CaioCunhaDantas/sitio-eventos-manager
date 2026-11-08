@@ -89,6 +89,19 @@ CREATE TABLE IF NOT EXISTS pagamento (
 CREATE INDEX IF NOT EXISTS ix_pagamento_reserva ON pagamento (id_reserva);
 
 -- -------------------------------------------------------------
+-- Usuario: quem pode entrar no sistema (login)
+-- A senha NUNCA é guardada: só o hash (impressão digital
+-- irreversível) e o salt (valor aleatório que torna o hash único).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS usuario (
+    id         INTEGER PRIMARY KEY,
+    nome       TEXT    NOT NULL UNIQUE CHECK (trim(nome) <> ''),
+    senha_hash TEXT    NOT NULL,
+    salt       TEXT    NOT NULL,
+    criado_em  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+) STRICT;
+
+-- -------------------------------------------------------------
 -- View: situação financeira de cada reserva (saldo calculado)
 -- Uma view é uma "consulta salva": se comporta como tabela,
 -- mas é recalculada a cada uso, então nunca fica desatualizada.

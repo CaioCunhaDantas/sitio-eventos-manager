@@ -7,12 +7,14 @@ Pode rodar mais de uma vez sem perigo: o schema usa
 "CREATE ... IF NOT EXISTS", então nada que já existe é apagado.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 
 PASTA_DATABASE = Path(__file__).resolve().parent
 CAMINHO_SCHEMA = PASTA_DATABASE / "schema.sql"
-CAMINHO_BANCO = PASTA_DATABASE / "sitio.db"
+# A variável de ambiente SITIO_DB permite usar outro arquivo (ex.: em testes)
+CAMINHO_BANCO = Path(os.environ.get("SITIO_DB", PASTA_DATABASE / "sitio.db"))
 
 
 def conectar(caminho_banco: Path = CAMINHO_BANCO) -> sqlite3.Connection:
