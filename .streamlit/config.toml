@@ -1,0 +1,9 @@
+[theme]
+base = "light"
+baseFontSize = 20          # letra maior em todo o sistema (padrão é 16)
+
+[client]
+toolbarMode = "minimal"    # esconde o menu de desenvolvedor do Streamlit
+
+[browser]
+gatherUsageStats = false   # não envia estatísticas de uso ao Streamlit
