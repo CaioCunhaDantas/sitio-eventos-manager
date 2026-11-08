@@ -6,9 +6,10 @@ import streamlit as st
 
 from app.componentes import (botao_com_confirmacao, erros_da_reserva, guardar_aviso,
                              mostrar_aviso)
-from app.formatacao import (HORARIOS, MESES, STATUS_TEXTO, data_com_dia_semana,
-                            data_extenso, para_centavos, para_data, reais,
-                            situacao_pagamento)
+from app.formatacao import (HORARIOS, MESES, STATUS_TEXTO, dados_completos,
+                            data_com_dia_semana, data_extenso, endereco_texto,
+                            para_centavos, para_data, reais, situacao_pagamento,
+                            texto_situacao)
 from database import repositorio as repo
 
 CSS_CALENDARIO = """
@@ -28,7 +29,8 @@ CSS_CALENDARIO = """
 .cal .festa { margin-top: 4px; padding: 4px 6px; border-radius: 6px; font-size: 0.78rem;
               line-height: 1.2; overflow-wrap: anywhere; }
 .cal .festa b { font-weight: 600; }
-.cal .festa .valor { display: block; margin-top: 2px; font-weight: 600; }
+.cal .festa .valor { display: block; font-weight: 600; }
+.cal .festa.pre_reserva { background: #FFFFFF; color: #5F6553; border: 1px dashed #8A9078; }
 /* Cores por situação do pagamento */
 .cal .festa.quitada   { background: #556B2F; color: #FFFFFF; }
 .cal .festa.falta     { background: #FBF0D5; color: #5A4510; border-left: 3px solid #C8961E; }
@@ -44,6 +46,7 @@ CSS_CALENDARIO = """
 .legenda .l-quitada::before   { background: #556B2F; }
 .legenda .l-falta::before     { background: #C8961E; }
 .legenda .l-sem_sinal::before { background: #C0603A; }
+.legenda .l-pre_reserva::before { background: #FFFFFF; box-shadow: inset 0 0 0 1px #8A9078; }
 </style>
 """
 
@@ -99,14 +102,12 @@ def html_celula(dia: date, mes: int, hoje: date, reserva: dict | None) -> str:
     conteudo = ""
     if reserva:
         situacao = situacao_pagamento(reserva)
-        if situacao == "quitada":
-            valor = "Quitada"
-        else:
-            #   = espaço que não quebra linha: "R$" e o número ficam sempre juntos
-            valor = f"Falta {reais(reserva['saldo_devedor']).replace(' ', ' ')}"
+        # chr(160) = espaço que não quebra linha: "R$" e o número ficam sempre juntos
+        valor = texto_situacao(reserva).replace("R$ ", "R$" + chr(160))
+        tipo = f"{escape(reserva['tipo_festa'])}<br>" if reserva["tipo_festa"] else ""
         # escape(): impede que um nome com "<" ou ">" quebre o HTML
         conteudo = (f'<div class="festa {situacao}"><b>{escape(reserva["cliente"])}</b><br>'
-                    f'{escape(reserva["tipo_festa"])}<span class="valor">{valor}</span></div>')
+                    f'{tipo}<span class="valor">{valor}</span></div>')
     return f'<td class="{" ".join(classes)}"><span class="num">{dia.day}</span>{conteudo}</td>'
 
 
@@ -135,7 +136,8 @@ def calendario_do_mes() -> None:
     m1, m2, m3 = st.columns(3)
     m1.metric("Festas", len(do_mes), border=True, help="Festas marcadas neste mês")
     m2.metric("Dias livres", livres, border=True, help="Dias deste mês, de hoje em diante, sem festa")
-    a_receber_no_mes = sum(r["saldo_devedor"] for r in do_mes)
+    # "or 0": pré-reserva sem valor combinado ainda não tem saldo
+    a_receber_no_mes = sum(r["saldo_devedor"] or 0 for r in do_mes)
     m3.metric("A receber", reais(a_receber_no_mes), border=True,
               help="Quanto ainda falta receber das festas deste mês")
 
@@ -152,7 +154,8 @@ def calendario_do_mes() -> None:
         + f'<table class="cal"><thead><tr>{cabecalho}</tr></thead><tbody>{linhas}</tbody></table>'
         + '<div class="legenda"><span class="l-quitada">Quitada</span>'
           '<span class="l-falta">Sinal pago, falta o resto</span>'
-          '<span class="l-sem_sinal">Nada pago ainda</span></div>'
+          '<span class="l-sem_sinal">Nada pago ainda</span>'
+          '<span class="l-pre_reserva">Pré-reserva (faltam dados)</span></div>'
     )
 
 
@@ -165,11 +168,12 @@ def formulario_alterar(r: dict) -> None:
                                    if r["hora_inicio"] in HORARIOS else 0)
         hora_fim = c2.selectbox("Termina às", HORARIOS, index=HORARIOS.index(r["hora_fim"])
                                 if r["hora_fim"] in HORARIOS else len(HORARIOS) - 1)
-        tipo = st.text_input("Tipo de festa", value=r["tipo_festa"])
+        tipo = st.text_input("Tipo de festa", value=r["tipo_festa"] or "")
         convidados = st.number_input("Convidados", min_value=1, value=r["num_convidados"], step=5)
         c3, c4 = st.columns(2)
-        valor_total = c3.number_input("Valor total (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                      value=r["valor_total"] / 100)
+        valor_total = c3.number_input(
+            "Valor total (R$)", min_value=0.0, step=50.0, format="%.2f",
+            value=r["valor_total"] / 100 if r["valor_total"] is not None else None)
         valor_sinal = c4.number_input("Valor do sinal (R$)", min_value=0.0, step=50.0, format="%.2f",
                                       value=r["valor_sinal"] / 100)
         status = st.selectbox("Situação", status_editaveis, format_func=STATUS_TEXTO.get,
@@ -180,27 +184,38 @@ def formulario_alterar(r: dict) -> None:
                                        icon=":material/check:")
 
     if salvar:
-        erros = erros_da_reserva(hora_inicio, hora_fim, tipo, convidados, valor_total, valor_sinal)
+        # Na pré-reserva os dados da festa podem ficar em branco
+        erros = erros_da_reserva(hora_inicio, hora_fim, tipo, convidados, valor_total,
+                                 valor_sinal, completa=(status != "pre_reserva"))
         for erro in erros:
             st.error(erro)
         if not erros:
             try:
                 repo.atualizar_reserva(r["id"], dia, hora_inicio, hora_fim, tipo, convidados,
-                                       para_centavos(valor_total), para_centavos(valor_sinal),
-                                       status, obs)
+                                       para_centavos(valor_total),
+                                       para_centavos(valor_sinal) or 0, status, obs)
             except repo.DataOcupadaError:
                 st.error(f"{data_extenso(dia).capitalize()} já tem outra festa. Escolha outro dia.",
                          icon=":material/event_busy:")
+            except repo.DadosIncompletosError:
+                st.error("Para sair da pré-reserva, preencha tipo de festa, convidados e valor.")
             else:
                 guardar_aviso("Alterações salvas!")
                 st.rerun()
 
 
 def detalhes_da_festa(r: dict) -> None:
+    if not dados_completos(r):
+        st.info("Pré-reserva: o dia está guardado, mas faltam os dados da festa "
+                "(tipo, convidados e valor). Complete em **Alterar dados desta festa**.",
+                icon=":material/pending:")
     c1, c2, c3 = st.columns(3)
     c1.markdown(f"**Horário**  \n{r['hora_inicio']} às {r['hora_fim']}")
-    c2.markdown(f"**Convidados**  \n{r['num_convidados']}")
+    c2.markdown(f"**Convidados**  \n{r['num_convidados'] or '—'}")
     c3.markdown(f"**Telefone**  \n{r['telefone']}")
+    endereco = endereco_texto(r)
+    st.markdown(f"**Endereço do cliente:** {endereco}" if endereco
+                else "**Endereço do cliente:** não cadastrado (complete na tela Clientes)")
     c4, c5, c6 = st.columns(3)
     c4.markdown(f"**Valor da festa**  \n{reais(r['valor_total'])}")
     c5.markdown(f"**Já pago**  \n{reais(r['total_pago'])}")
@@ -257,10 +272,10 @@ st.subheader(f"Festas de {MESES[mes - 1]}")
 if not festas:
     st.info("Nenhuma festa marcada neste mês.")
 for r in festas:
-    situacao = situacao_pagamento(r)
     icone = {"quitada": ":material/check_circle:", "falta": ":material/hourglass_top:",
-             "sem_sinal": ":material/schedule:"}[situacao]
-    pagamento = "quitada" if situacao == "quitada" else f"falta {reais(r['saldo_devedor'])}"
+             "sem_sinal": ":material/schedule:",
+             "pre_reserva": ":material/pending:"}[situacao_pagamento(r)]
+    tipo = f"{r['tipo_festa']} · " if r["tipo_festa"] else ""
     with st.expander(f"{data_com_dia_semana(r['data_festa'])} — {r['cliente']} — "
-                     f"{r['tipo_festa']} · {pagamento}", icon=icone):
+                     f"{tipo}{texto_situacao(r).lower()}", icon=icone):
         detalhes_da_festa(r)

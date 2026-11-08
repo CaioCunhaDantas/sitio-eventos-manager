@@ -8,7 +8,7 @@ MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho",
 DIAS_SEMANA = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
 
 STATUS_TEXTO = {
-    "pre_reserva": "Aguardando sinal",
+    "pre_reserva": "Pré-reserva (sem sinal)",
     "confirmada": "Confirmada",
     "realizada": "Já aconteceu",
     "cancelada": "Cancelada",
@@ -27,8 +27,17 @@ HORARIOS = [f"{h:02d}:{m:02d}" for h in range(9, 20) for m in (0, 30)
             if not (h == 19 and m == 30)]
 
 
+def dados_completos(reserva: dict) -> bool:
+    """Pré-reserva incompleta = ainda sem tipo de festa, convidados ou valor."""
+    return all(reserva.get(campo) is not None
+               for campo in ("tipo_festa", "num_convidados", "valor_total"))
+
+
 def situacao_pagamento(reserva: dict) -> str:
-    """'quitada' (nada falta), 'sem_sinal' (nada pago) ou 'falta' (pagou parte)."""
+    """'pre_reserva' (faltam dados), 'quitada' (nada falta),
+    'sem_sinal' (nada pago) ou 'falta' (pagou parte)."""
+    if not dados_completos(reserva):
+        return "pre_reserva"
     if reserva["saldo_devedor"] <= 0:
         return "quitada"
     if reserva["total_pago"] == 0:
@@ -36,16 +45,38 @@ def situacao_pagamento(reserva: dict) -> str:
     return "falta"
 
 
-def reais(centavos: int) -> str:
-    """150050 -> 'R$ 1.500,50'"""
+def texto_situacao(reserva: dict) -> str:
+    """Texto curto para o calendário e listas: 'Quitada', 'Falta R$ ...' ou 'Pré-reserva'."""
+    situacao = situacao_pagamento(reserva)
+    if situacao == "pre_reserva":
+        return "Pré-reserva"
+    if situacao == "quitada":
+        return "Quitada"
+    return f"Falta {reais(reserva['saldo_devedor'])}"
+
+
+def reais(centavos: int | None) -> str:
+    """150050 -> 'R$ 1.500,50'   (None -> '—', valor ainda não combinado)"""
+    if centavos is None:
+        return "—"
     texto = f"{centavos / 100:,.2f}"                       # '1,500.50'
     texto = texto.replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {texto}"
 
 
-def para_centavos(valor_em_reais: float) -> int:
-    """1500.5 -> 150050 (round evita 1500.5*100 = 150049.99999)"""
+def para_centavos(valor_em_reais: float | None) -> int | None:
+    """1500.5 -> 150050 (round evita 1500.5*100 = 150049.99999). Vazio -> None."""
+    if valor_em_reais is None:
+        return None
     return round(valor_em_reais * 100)
+
+
+def endereco_texto(cliente: dict) -> str | None:
+    """'Rua A, 10 — Tijuca, Rio de Janeiro' (ou None se não tiver nada)."""
+    partes = [cliente.get("endereco"),
+              ", ".join(p for p in (cliente.get("bairro"), cliente.get("cidade")) if p)]
+    texto = " — ".join(p for p in partes if p)
+    return texto or None
 
 
 def para_data(valor: str | date) -> date:

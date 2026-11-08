@@ -12,7 +12,10 @@ st.title("Pagamentos")
 mostrar_aviso()
 
 hoje = date.today()
-devendo = [r for r in repo.reservas_ativas() if r["saldo_devedor"] > 0]
+ativas = repo.reservas_ativas()
+# Pré-reserva sem valor combinado não tem saldo (None): fica fora daqui
+devendo = [r for r in ativas if r["saldo_devedor"] is not None and r["saldo_devedor"] > 0]
+sem_valor = [r for r in ativas if r["valor_total"] is None]
 por_id = {r["id"]: r for r in devendo}
 versao = st.session_state.setdefault("pagamento_versao", 0)
 
@@ -28,6 +31,10 @@ def tipo_automatico(reserva: dict, valor: int) -> str:
 
 # ---------- Registrar ----------
 st.subheader("Registrar um pagamento")
+if sem_valor:
+    nomes = ", ".join(f"{r['cliente']} ({data_curta(r['data_festa'])})" for r in sem_valor)
+    st.caption(f"Pré-reservas sem valor combinado não aparecem aqui: {nomes}. "
+               "Complete os dados delas no Calendário para poder receber o sinal.")
 if not devendo:
     st.info("Nenhuma festa com pagamento pendente.", icon=":material/check_circle:")
 else:
