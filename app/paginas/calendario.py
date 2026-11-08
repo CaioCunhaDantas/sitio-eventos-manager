@@ -7,7 +7,8 @@ import streamlit as st
 from app.componentes import (botao_com_confirmacao, erros_da_reserva, guardar_aviso,
                              mostrar_aviso)
 from app.formatacao import (HORARIOS, MESES, STATUS_TEXTO, data_com_dia_semana,
-                            data_extenso, para_centavos, para_data, reais)
+                            data_extenso, para_centavos, para_data, reais,
+                            situacao_pagamento)
 from database import repositorio as repo
 
 CSS_CALENDARIO = """
@@ -27,9 +28,12 @@ CSS_CALENDARIO = """
 .cal .festa { margin-top: 4px; padding: 4px 6px; border-radius: 6px; font-size: 0.78rem;
               line-height: 1.2; overflow-wrap: anywhere; }
 .cal .festa b { font-weight: 600; }
-.cal .festa.confirmada { background: #556B2F; color: #FFFFFF; }
-.cal .festa.aguardando { background: #EEF1E6; color: #3A4030; border-left: 3px solid #556B2F; }
-.cal td.passado .festa { opacity: 0.55; }
+.cal .festa .valor { display: block; margin-top: 2px; font-weight: 600; }
+/* Cores por situação do pagamento */
+.cal .festa.quitada   { background: #556B2F; color: #FFFFFF; }
+.cal .festa.falta     { background: #FBF0D5; color: #5A4510; border-left: 3px solid #C8961E; }
+.cal .festa.sem_sinal { background: #F8E1D7; color: #6B2E17; border-left: 3px solid #C0603A; }
+.cal td.passado .festa { opacity: 0.6; }
 /* Sábado e domingo com fundo levemente destacado */
 .cal td.fds { background: #F7F9F1; }
 .cal th.fds { color: #556B2F; }
@@ -37,8 +41,9 @@ CSS_CALENDARIO = """
            margin-top: 10px; }
 .legenda span::before { content: ""; display: inline-block; width: 10px; height: 10px;
                         border-radius: 50%; margin-right: 6px; }
-.legenda .l-confirmada::before { background: #556B2F; }
-.legenda .l-aguardando::before { background: #EEF1E6; box-shadow: inset 0 0 0 2px #556B2F; }
+.legenda .l-quitada::before   { background: #556B2F; }
+.legenda .l-falta::before     { background: #C8961E; }
+.legenda .l-sem_sinal::before { background: #C0603A; }
 </style>
 """
 
@@ -93,10 +98,15 @@ def html_celula(dia: date, mes: int, hoje: date, reserva: dict | None) -> str:
 
     conteudo = ""
     if reserva:
-        tipo = "aguardando" if reserva["status"] == "pre_reserva" else "confirmada"
+        situacao = situacao_pagamento(reserva)
+        if situacao == "quitada":
+            valor = "Quitada"
+        else:
+            #   = espaço que não quebra linha: "R$" e o número ficam sempre juntos
+            valor = f"Falta {reais(reserva['saldo_devedor']).replace(' ', ' ')}"
         # escape(): impede que um nome com "<" ou ">" quebre o HTML
-        conteudo = (f'<div class="festa {tipo}"><b>{escape(reserva["cliente"])}</b><br>'
-                    f'{escape(reserva["tipo_festa"])}</div>')
+        conteudo = (f'<div class="festa {situacao}"><b>{escape(reserva["cliente"])}</b><br>'
+                    f'{escape(reserva["tipo_festa"])}<span class="valor">{valor}</span></div>')
     return f'<td class="{" ".join(classes)}"><span class="num">{dia.day}</span>{conteudo}</td>'
 
 
@@ -125,8 +135,9 @@ def calendario_do_mes() -> None:
     m1, m2, m3 = st.columns(3)
     m1.metric("Festas", len(do_mes), border=True, help="Festas marcadas neste mês")
     m2.metric("Dias livres", livres, border=True, help="Dias deste mês, de hoje em diante, sem festa")
-    m3.metric("A receber", reais(repo.total_a_receber()), border=True,
-              help="Quanto falta receber de todas as festas não canceladas")
+    a_receber_no_mes = sum(r["saldo_devedor"] for r in do_mes)
+    m3.metric("A receber", reais(a_receber_no_mes), border=True,
+              help="Quanto ainda falta receber das festas deste mês")
 
     cabecalho = "".join(
         f'<th class="fds">{d}</th>' if d in ("Sáb", "Dom") else f"<th>{d}</th>"
@@ -139,8 +150,9 @@ def calendario_do_mes() -> None:
     st.html(
         CSS_CALENDARIO
         + f'<table class="cal"><thead><tr>{cabecalho}</tr></thead><tbody>{linhas}</tbody></table>'
-        + '<div class="legenda"><span class="l-confirmada">Festa confirmada</span>'
-          '<span class="l-aguardando">Aguardando sinal</span></div>'
+        + '<div class="legenda"><span class="l-quitada">Quitada</span>'
+          '<span class="l-falta">Sinal pago, falta o resto</span>'
+          '<span class="l-sem_sinal">Nada pago ainda</span></div>'
     )
 
 
@@ -245,7 +257,10 @@ st.subheader(f"Festas de {MESES[mes - 1]}")
 if not festas:
     st.info("Nenhuma festa marcada neste mês.")
 for r in festas:
-    icone = ":material/schedule:" if r["status"] == "pre_reserva" else ":material/event_available:"
-    with st.expander(f"{data_com_dia_semana(r['data_festa'])} — {r['cliente']} — {r['tipo_festa']}",
-                     icon=icone):
+    situacao = situacao_pagamento(r)
+    icone = {"quitada": ":material/check_circle:", "falta": ":material/hourglass_top:",
+             "sem_sinal": ":material/schedule:"}[situacao]
+    pagamento = "quitada" if situacao == "quitada" else f"falta {reais(r['saldo_devedor'])}"
+    with st.expander(f"{data_com_dia_semana(r['data_festa'])} — {r['cliente']} — "
+                     f"{r['tipo_festa']} · {pagamento}", icon=icone):
         detalhes_da_festa(r)

@@ -27,6 +27,15 @@ HORARIOS = [f"{h:02d}:{m:02d}" for h in range(9, 20) for m in (0, 30)
             if not (h == 19 and m == 30)]
 
 
+def situacao_pagamento(reserva: dict) -> str:
+    """'quitada' (nada falta), 'sem_sinal' (nada pago) ou 'falta' (pagou parte)."""
+    if reserva["saldo_devedor"] <= 0:
+        return "quitada"
+    if reserva["total_pago"] == 0:
+        return "sem_sinal"
+    return "falta"
+
+
 def reais(centavos: int) -> str:
     """150050 -> 'R$ 1.500,50'"""
     texto = f"{centavos / 100:,.2f}"                       # '1,500.50'
