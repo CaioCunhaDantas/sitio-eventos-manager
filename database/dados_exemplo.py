@@ -35,7 +35,7 @@ def main() -> None:
     ana = repo.criar_cliente("Ana Souza", "21 99999-0000", observacoes="Indicação da vizinha")
     bruno = repo.criar_cliente("Bruno Lima", "21 98888-1111", "bruno@exemplo.com")
     carla = repo.criar_cliente("Carla Mendes", "21 97777-2222")
-    repo.criar_cliente("Daniel Rocha", "21 96666-3333")
+    daniel = repo.criar_cliente("Daniel Rocha", "21 96666-3333")
 
     # Festa que já passou e ainda tem saldo (aparece como atrasada)
     r1 = repo.criar_reserva(carla, hoje - timedelta(days=6), "12:00", "18:00", "Batizado",
@@ -50,6 +50,12 @@ def main() -> None:
     # Festa aguardando sinal
     repo.criar_reserva(bruno, hoje + timedelta(days=12), "09:00", "19:00", "Casamento",
                        200, 800_000, 240_000)
+
+    # Festa já quitada (sinal + pagamento final)
+    r3 = repo.criar_reserva(daniel, hoje + timedelta(days=8), "11:00", "17:00", "Chá de bebê",
+                            40, 180_000, 54_000)
+    repo.registrar_pagamento(r3, 54_000, hoje - timedelta(days=30), "sinal", "pix")
+    repo.registrar_pagamento(r3, 126_000, hoje - timedelta(days=2), "quitacao", "pix")
 
     # Festa no mês seguinte
     repo.criar_reserva(ana, hoje + timedelta(days=35), "10:00", "17:00", "Confraternização",
