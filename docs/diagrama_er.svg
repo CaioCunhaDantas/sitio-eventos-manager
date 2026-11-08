@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="860" viewBox="0 0 1800 860" font-family="Arial, sans-serif">
+<rect width="1800" height="860" fill="#ffffff"/>
+<text x="20" y="34" font-size="22" font-weight="bold">Diagrama ER — Gestão Sítio de Festas (notação de Peter Chen)</text>
+<line x1="300" y1="420" x2="223" y2="218" stroke="#555"/>
+<line x1="300" y1="420" x2="133" y2="276" stroke="#555"/>
+<line x1="300" y1="420" x2="82" y2="368" stroke="#555"/>
+<line x1="300" y1="420" x2="82" y2="472" stroke="#555"/>
+<line x1="300" y1="420" x2="133" y2="564" stroke="#555"/>
+<line x1="300" y1="420" x2="223" y2="622" stroke="#555"/>
+<line x1="1400" y1="420" x2="1452" y2="144" stroke="#555"/>
+<line x1="1400" y1="420" x2="1579" y2="195" stroke="#555"/>
+<line x1="1400" y1="420" x2="1668" y2="294" stroke="#555"/>
+<line x1="1400" y1="420" x2="1700" y2="420" stroke="#555"/>
+<line x1="1400" y1="420" x2="1668" y2="546" stroke="#555"/>
+<line x1="1400" y1="420" x2="1579" y2="645" stroke="#555"/>
+<line x1="1400" y1="420" x2="1452" y2="696" stroke="#555"/>
+<line x1="850" y1="420" x2="475" y2="210" stroke="#555"/>
+<line x1="850" y1="420" x2="625" y2="210" stroke="#555"/>
+<line x1="850" y1="420" x2="775" y2="210" stroke="#555"/>
+<line x1="850" y1="420" x2="925" y2="210" stroke="#555"/>
+<line x1="850" y1="420" x2="1075" y2="210" stroke="#555"/>
+<line x1="850" y1="420" x2="1225" y2="210" stroke="#555"/>
+<line x1="850" y1="420" x2="475" y2="630" stroke="#555"/>
+<line x1="850" y1="420" x2="625" y2="630" stroke="#555"/>
+<line x1="850" y1="420" x2="775" y2="630" stroke="#555"/>
+<line x1="850" y1="420" x2="925" y2="630" stroke="#555"/>
+<line x1="850" y1="420" x2="1075" y2="630" stroke="#555"/>
+<line x1="850" y1="420" x2="1225" y2="630" stroke="#555"/>
+<line x1="300" y1="420" x2="575" y2="420" stroke="#000"/>
+<text x="398.0" y="408" font-size="20" font-weight="bold" text-anchor="middle">1</text>
+<line x1="850" y1="417" x2="575" y2="417" stroke="#000"/>
+<line x1="850" y1="423" x2="575" y2="423" stroke="#000"/>
+<text x="752.0" y="408" font-size="20" font-weight="bold" text-anchor="middle">N</text>
+<line x1="850" y1="420" x2="1125" y2="420" stroke="#000"/>
+<text x="948.0" y="408" font-size="20" font-weight="bold" text-anchor="middle">1</text>
+<line x1="1400" y1="417" x2="1125" y2="417" stroke="#000"/>
+<line x1="1400" y1="423" x2="1125" y2="423" stroke="#000"/>
+<text x="1302.0" y="408" font-size="20" font-weight="bold" text-anchor="middle">N</text>
+<ellipse cx="223" cy="218" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="223" y="223" font-size="14" text-anchor="middle" text-decoration="underline" font-weight="bold">id</text>
+<ellipse cx="133" cy="276" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="133" y="281" font-size="14" text-anchor="middle">nome</text>
+<ellipse cx="82" cy="368" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="82" y="373" font-size="14" text-anchor="middle">telefone</text>
+<ellipse cx="82" cy="472" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="82" y="477" font-size="14" text-anchor="middle">email</text>
+<ellipse cx="133" cy="564" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="133" y="569" font-size="14" text-anchor="middle">observacoes</text>
+<ellipse cx="223" cy="622" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="223" y="627" font-size="14" text-anchor="middle">criado_em</text>
+<ellipse cx="1452" cy="144" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1452" y="149" font-size="14" text-anchor="middle" text-decoration="underline" font-weight="bold">id</text>
+<ellipse cx="1579" cy="195" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1579" y="200" font-size="14" text-anchor="middle">valor</text>
+<ellipse cx="1668" cy="294" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1668" y="299" font-size="14" text-anchor="middle">data_pagamento</text>
+<ellipse cx="1700" cy="420" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1700" y="425" font-size="14" text-anchor="middle">tipo</text>
+<ellipse cx="1668" cy="546" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1668" y="551" font-size="14" text-anchor="middle">forma_pagamento</text>
+<ellipse cx="1579" cy="645" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1579" y="650" font-size="14" text-anchor="middle">observacao</text>
+<ellipse cx="1452" cy="696" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1452" y="701" font-size="14" text-anchor="middle">criado_em</text>
+<ellipse cx="475" cy="210" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="475" y="215" font-size="14" text-anchor="middle" text-decoration="underline" font-weight="bold">id</text>
+<ellipse cx="625" cy="210" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="625" y="215" font-size="14" text-anchor="middle">data_festa</text>
+<ellipse cx="775" cy="210" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="775" y="215" font-size="14" text-anchor="middle">hora_inicio</text>
+<ellipse cx="925" cy="210" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="925" y="215" font-size="14" text-anchor="middle">hora_fim</text>
+<ellipse cx="1075" cy="210" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1075" y="215" font-size="14" text-anchor="middle">tipo_festa</text>
+<ellipse cx="1225" cy="210" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1225" y="215" font-size="14" text-anchor="middle">num_convidados</text>
+<ellipse cx="475" cy="630" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="475" y="635" font-size="14" text-anchor="middle">valor_total</text>
+<ellipse cx="625" cy="630" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="625" y="635" font-size="14" text-anchor="middle">valor_sinal</text>
+<ellipse cx="775" cy="630" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="775" y="635" font-size="14" text-anchor="middle">status</text>
+<ellipse cx="925" cy="630" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="925" y="635" font-size="14" text-anchor="middle">observacoes</text>
+<ellipse cx="1075" cy="630" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704"/>
+<text x="1075" y="635" font-size="14" text-anchor="middle">criado_em</text>
+<ellipse cx="1225" cy="630" rx="65.0" ry="22.0" fill="#fff8e1" stroke="#b28704" stroke-dasharray="6 4"/>
+<text x="1225" y="635" font-size="14" text-anchor="middle">saldo_devedor</text>
+<polygon points="575,380.0 635.0,420 575,460.0 515.0,420" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="575" y="426" font-size="17" text-anchor="middle">faz</text>
+<polygon points="1125,380.0 1185.0,420 1125,460.0 1065.0,420" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="1125" y="426" font-size="17" text-anchor="middle">recebe</text>
+<rect x="220.0" y="390.0" width="160" height="60" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+<text x="300" y="427" font-size="20" font-weight="bold" text-anchor="middle">Cliente</text>
+<rect x="770.0" y="390.0" width="160" height="60" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+<text x="850" y="427" font-size="20" font-weight="bold" text-anchor="middle">Reserva</text>
+<rect x="1320.0" y="390.0" width="160" height="60" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+<text x="1400" y="427" font-size="20" font-weight="bold" text-anchor="middle">Pagamento</text>
+<text x="20" y="780" font-size="14" font-weight="bold">Legenda:</text>
+<text x="20" y="800" font-size="14">Retângulo = entidade · Losango = relacionamento · Elipse = atributo</text>
+<text x="20" y="820" font-size="14">Sublinhado = chave primária · Elipse tracejada = atributo derivado (calculado)</text>
+<text x="20" y="840" font-size="14">Linha dupla = participação total (toda Reserva tem um Cliente; todo Pagamento tem uma Reserva)</text>
+</svg>
