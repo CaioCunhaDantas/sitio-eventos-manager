@@ -17,7 +17,7 @@ from app.estilo import aplicar_estilo
 from database.criar_banco import criar_banco
 from database.usuarios import existe_usuario, verificar_senha
 
-st.set_page_config(page_title="Sítio de Festas", page_icon="🏡", layout="centered")
+st.set_page_config(page_title="Sítio de Festas", page_icon=":material/cottage:", layout="centered")
 aplicar_estilo()
 
 
@@ -30,7 +30,7 @@ preparar_banco()
 
 
 def tela_login() -> None:
-    st.title("🏡 Sítio de Festas")
+    st.title("Sítio de Festas")
 
     if not existe_usuario():
         st.warning(
@@ -42,7 +42,7 @@ def tela_login() -> None:
     # st.form: a senha só é conferida ao clicar em Entrar (ou apertar Enter)
     with st.form("login"):
         senha = st.text_input("Digite sua senha", type="password")
-        entrar = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+        entrar = st.form_submit_button("Entrar", type="primary", width="stretch")
 
     if entrar:
         nome = verificar_senha(senha)
@@ -59,15 +59,17 @@ def sair() -> None:
 
 
 if "usuario" not in st.session_state:
-    pagina = st.navigation([st.Page(tela_login, title="Entrar", icon="🔑")])
+    pagina = st.navigation([st.Page(tela_login, title="Entrar", icon=":material/lock:")])
 else:
+    # Ícones: Material Symbols (fonts.google.com/icons), escritos como :material/nome:
     pagina = st.navigation(
         [
-            st.Page("paginas/calendario.py", title="Calendário", icon="📅", default=True),
-            st.Page("paginas/nova_reserva.py", title="Nova reserva", icon="➕"),
-            st.Page("paginas/clientes.py", title="Clientes", icon="👥"),
-            st.Page("paginas/pagamentos.py", title="Pagamentos", icon="💰"),
-            st.Page(sair, title="Sair", icon="🚪"),
+            st.Page("paginas/calendario.py", title="Calendário",
+                    icon=":material/calendar_month:", default=True),
+            st.Page("paginas/nova_reserva.py", title="Nova reserva", icon=":material/add_circle:"),
+            st.Page("paginas/clientes.py", title="Clientes", icon=":material/group:"),
+            st.Page("paginas/pagamentos.py", title="Pagamentos", icon=":material/payments:"),
+            st.Page(sair, title="Sair", icon=":material/logout:"),
         ],
         position="top",
     )

@@ -1,6 +1,10 @@
 [theme]
 base = "light"
-baseFontSize = 20          # letra maior em todo o sistema (padrão é 16)
+primaryColor = "#556B2F"             # verde musgo (botões, destaques)
+backgroundColor = "#FFFFFF"          # fundo branco (visual limpo)
+secondaryBackgroundColor = "#F2F4EC" # campos e caixas, verde bem claro
+textColor = "#2E3324"                # texto quase preto, puxado para o verde
+baseFontSize = 20                    # letra maior em todo o sistema (padrão é 16)
 
 [client]
 toolbarMode = "minimal"    # esconde o menu de desenvolvedor do Streamlit

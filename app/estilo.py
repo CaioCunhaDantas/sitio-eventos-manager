@@ -12,6 +12,18 @@ button[data-testid^="stBaseButton"] {
 button[data-testid^="stBaseButton"] p {
     font-size: 1.3rem;
 }
+/* Área central mais larga, para o calendário caber com folga */
+[data-testid="stMainBlockContainer"] {
+    max-width: 1100px;
+}
+/* Menu do topo com letra grande */
+[data-testid="stTopNavLink"] p,
+[data-testid="stTopNavLink"] span {
+    font-size: 1.25rem !important;
+}
+/* Títulos mais leves */
+h1 { font-weight: 600 !important; letter-spacing: -0.01em; }
+h2, h3 { font-weight: 600 !important; }
 /* Campos de texto com letra grande */
 input, textarea {
     font-size: 1.3rem !important;
