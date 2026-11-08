@@ -25,6 +25,7 @@ def conectar(caminho_banco: Path = CAMINHO_BANCO) -> sqlite3.Connection:
     passar por esta função.
     """
     conexao = sqlite3.connect(caminho_banco)
+    conexao.row_factory = sqlite3.Row  # permite ler colunas pelo nome: linha["nome"]
     conexao.execute("PRAGMA foreign_keys = ON;")
     return conexao
 

@@ -4,6 +4,9 @@
 *.sqlite
 backups/
 
+# Configuração local do Claude Code
+.claude/
+
 # Python
 __pycache__/
 *.pyc
