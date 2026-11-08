@@ -18,6 +18,10 @@ class DataOcupadaError(Exception):
     """Já existe uma festa (não cancelada) nessa data."""
 
 
+class DadosIncompletosError(Exception):
+    """Pré-reserva sem tipo/convidados/valor: não pode receber pagamento nem ser confirmada."""
+
+
 @contextmanager
 def _conexao():
     """Abre a conexão, faz commit se tudo der certo (ou rollback se der
@@ -53,32 +57,49 @@ def listar_clientes(busca: str = "") -> list[dict]:
         return _lista(c.execute(
             """
             SELECT * FROM cliente
-            WHERE nome LIKE ? OR telefone LIKE ?
+            WHERE nome LIKE ? OR telefone LIKE ? OR bairro LIKE ? OR cidade LIKE ?
             ORDER BY nome COLLATE NOCASE
             """,
-            (termo, termo),
+            (termo, termo, termo, termo),
         ))
 
 
 def criar_cliente(nome: str, telefone: str, email: str | None = None,
-                  observacoes: str | None = None) -> int:
+                  observacoes: str | None = None, endereco: str | None = None,
+                  bairro: str | None = None, cidade: str | None = None) -> int:
     with _conexao() as c:
         cursor = c.execute(
-            "INSERT INTO cliente (nome, telefone, email, observacoes) VALUES (?, ?, ?, ?)",
+            """
+            INSERT INTO cliente (nome, telefone, email, observacoes, endereco, bairro, cidade)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
             (nome.strip(), telefone.strip(), _vazio_para_none(email),
-             _vazio_para_none(observacoes)),
+             _vazio_para_none(observacoes), _vazio_para_none(endereco),
+             _vazio_para_none(bairro), _vazio_para_none(cidade)),
         )
         return cursor.lastrowid
 
 
 def atualizar_cliente(id_cliente: int, nome: str, telefone: str,
-                      email: str | None = None, observacoes: str | None = None) -> None:
+                      email: str | None = None, observacoes: str | None = None,
+                      endereco: str | None = None, bairro: str | None = None,
+                      cidade: str | None = None) -> None:
     with _conexao() as c:
         c.execute(
-            "UPDATE cliente SET nome = ?, telefone = ?, email = ?, observacoes = ? WHERE id = ?",
+            """
+            UPDATE cliente
+            SET nome = ?, telefone = ?, email = ?, observacoes = ?,
+                endereco = ?, bairro = ?, cidade = ?
+            WHERE id = ?
+            """,
             (nome.strip(), telefone.strip(), _vazio_para_none(email),
-             _vazio_para_none(observacoes), id_cliente),
+             _vazio_para_none(observacoes), _vazio_para_none(endereco),
+             _vazio_para_none(bairro), _vazio_para_none(cidade), id_cliente),
         )
+
+
+def endereco_completo(cliente: dict) -> bool:
+    return all(cliente.get(campo) for campo in ("endereco", "bairro", "cidade"))
 
 
 # ============================================================
@@ -87,7 +108,7 @@ def atualizar_cliente(id_cliente: int, nome: str, telefone: str,
 
 # Reserva + nome do cliente + situação financeira (da view de saldo)
 _SELECT_RESERVA = """
-    SELECT r.*, c.nome AS cliente, c.telefone,
+    SELECT r.*, c.nome AS cliente, c.telefone, c.endereco, c.bairro, c.cidade,
            s.total_pago, s.saldo_devedor, s.sinal_pago
     FROM reserva r
     JOIN cliente c          ON c.id = r.id_cliente
@@ -95,16 +116,27 @@ _SELECT_RESERVA = """
 """
 
 
-def _traduzir_conflito(erro: sqlite3.IntegrityError, data_festa: date) -> Exception:
-    """Transforma o erro do índice único (uma festa por dia) num erro claro."""
-    if "reserva.data_festa" in str(erro):
+def _traduzir_erro(erro: sqlite3.IntegrityError, data_festa: date | None = None) -> Exception:
+    """Transforma erros do banco em erros claros para a tela."""
+    mensagem = str(erro)
+    if "reserva.data_festa" in mensagem:           # índice único: uma festa por dia
         return DataOcupadaError(data_festa)
+    if "reserva_sem_dados_completos" in mensagem:  # trigger do pagamento
+        return DadosIncompletosError()
+    if "status = 'pre_reserva'" in mensagem:       # CHECK de dados obrigatórios
+        return DadosIncompletosError()
     return erro
 
 
-def criar_reserva(id_cliente: int, data_festa: date, hora_inicio: str, hora_fim: str,
-                  tipo_festa: str, num_convidados: int, valor_total: int,
-                  valor_sinal: int, observacoes: str | None = None) -> int:
+def criar_reserva(id_cliente: int, data_festa: date, hora_inicio: str = "09:00",
+                  hora_fim: str = "19:00", tipo_festa: str | None = None,
+                  num_convidados: int | None = None, valor_total: int | None = None,
+                  valor_sinal: int = 0, observacoes: str | None = None) -> int:
+    """Cria a reserva como 'pre_reserva' (sem sinal pago).
+
+    Pré-reserva só com o dia: deixe tipo_festa, num_convidados e
+    valor_total como None; eles podem ser completados depois.
+    """
     try:
         with _conexao() as c:
             cursor = c.execute(
@@ -115,17 +147,18 @@ def criar_reserva(id_cliente: int, data_festa: date, hora_inicio: str, hora_fim:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (id_cliente, data_festa.isoformat(), hora_inicio, hora_fim,
-                 tipo_festa.strip(), num_convidados, valor_total, valor_sinal,
+                 _vazio_para_none(tipo_festa), num_convidados, valor_total, valor_sinal,
                  _vazio_para_none(observacoes)),
             )
             return cursor.lastrowid
     except sqlite3.IntegrityError as erro:
-        raise _traduzir_conflito(erro, data_festa) from erro
+        raise _traduzir_erro(erro, data_festa) from erro
 
 
 def atualizar_reserva(id_reserva: int, data_festa: date, hora_inicio: str, hora_fim: str,
-                      tipo_festa: str, num_convidados: int, valor_total: int,
-                      valor_sinal: int, status: str, observacoes: str | None = None) -> None:
+                      tipo_festa: str | None, num_convidados: int | None,
+                      valor_total: int | None, valor_sinal: int, status: str,
+                      observacoes: str | None = None) -> None:
     try:
         with _conexao() as c:
             c.execute(
@@ -136,12 +169,12 @@ def atualizar_reserva(id_reserva: int, data_festa: date, hora_inicio: str, hora_
                     status = ?, observacoes = ?
                 WHERE id = ?
                 """,
-                (data_festa.isoformat(), hora_inicio, hora_fim, tipo_festa.strip(),
+                (data_festa.isoformat(), hora_inicio, hora_fim, _vazio_para_none(tipo_festa),
                  num_convidados, valor_total, valor_sinal, status,
                  _vazio_para_none(observacoes), id_reserva),
             )
     except sqlite3.IntegrityError as erro:
-        raise _traduzir_conflito(erro, data_festa) from erro
+        raise _traduzir_erro(erro, data_festa) from erro
 
 
 def cancelar_reserva(id_reserva: int) -> None:
@@ -198,22 +231,26 @@ def registrar_pagamento(id_reserva: int, valor: int, data_pagamento: date, tipo:
     As duas alterações rodam na MESMA transação: ou as duas acontecem,
     ou nenhuma acontece.
     """
-    with _conexao() as c:
-        cursor = c.execute(
-            """
-            INSERT INTO pagamento (id_reserva, valor, data_pagamento, tipo,
-                                   forma_pagamento, observacao)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (id_reserva, valor, data_pagamento.isoformat(), tipo, forma_pagamento,
-             _vazio_para_none(observacao)),
-        )
-        if tipo == "sinal":
-            c.execute(
-                "UPDATE reserva SET status = 'confirmada' WHERE id = ? AND status = 'pre_reserva'",
-                (id_reserva,),
+    try:
+        with _conexao() as c:
+            cursor = c.execute(
+                """
+                INSERT INTO pagamento (id_reserva, valor, data_pagamento, tipo,
+                                       forma_pagamento, observacao)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (id_reserva, valor, data_pagamento.isoformat(), tipo, forma_pagamento,
+                 _vazio_para_none(observacao)),
             )
-        return cursor.lastrowid
+            if tipo == "sinal":
+                c.execute(
+                    "UPDATE reserva SET status = 'confirmada' "
+                    "WHERE id = ? AND status = 'pre_reserva'",
+                    (id_reserva,),
+                )
+            return cursor.lastrowid
+    except sqlite3.IntegrityError as erro:
+        raise _traduzir_erro(erro) from erro
 
 
 def pagamentos_recentes(limite: int = 30) -> list[dict]:

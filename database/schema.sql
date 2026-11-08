@@ -9,6 +9,8 @@
 --     (por padrão ele aceita texto numa coluna INTEGER).
 --   * Saldo devedor NÃO é guardado: é calculado como
 --     valor_total - soma dos pagamentos (ver view no final).
+--   * Este arquivo descreve o banco na versão MAIS NOVA. Bancos antigos
+--     são atualizados pelas migrações em database/migracoes.py.
 -- =============================================================
 
 PRAGMA foreign_keys = ON;
@@ -22,11 +24,21 @@ CREATE TABLE IF NOT EXISTS cliente (
     telefone    TEXT    NOT NULL CHECK (trim(telefone) <> ''),
     email       TEXT,                          -- opcional
     observacoes TEXT,
-    criado_em   TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    criado_em   TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    -- Endereço separado em partes: permite analisar de onde vêm os clientes.
+    -- Opcional no banco: numa pré-reserva ainda não temos esses dados.
+    endereco    TEXT,                          -- rua e número
+    bairro      TEXT,
+    cidade      TEXT
 ) STRICT;
 
 -- -------------------------------------------------------------
 -- Reserva: uma festa em uma data
+--
+-- status 'pre_reserva' = cliente demonstrou interesse e ainda não
+-- pagou o sinal. Nesse estado tipo_festa, num_convidados e
+-- valor_total podem ficar em branco (dados incompletos). Para sair
+-- da pré-reserva, eles passam a ser obrigatórios (último CHECK).
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS reserva (
     id             INTEGER PRIMARY KEY,
@@ -38,11 +50,11 @@ CREATE TABLE IF NOT EXISTS reserva (
                    CHECK (hora_inicio IS strftime('%H:%M', hora_inicio)),
     hora_fim       TEXT    NOT NULL
                    CHECK (hora_fim IS strftime('%H:%M', hora_fim)),
-    tipo_festa     TEXT    NOT NULL CHECK (trim(tipo_festa) <> ''),  -- texto livre
-    num_convidados INTEGER NOT NULL CHECK (num_convidados > 0),
-    valor_total    INTEGER NOT NULL CHECK (valor_total > 0),        -- centavos
+    tipo_festa     TEXT    CHECK (trim(tipo_festa) <> ''),   -- texto livre
+    num_convidados INTEGER CHECK (num_convidados > 0),
+    valor_total    INTEGER CHECK (valor_total > 0),          -- centavos
     valor_sinal    INTEGER NOT NULL DEFAULT 0
-                   CHECK (valor_sinal >= 0),                         -- centavos
+                   CHECK (valor_sinal >= 0),                 -- centavos
     status         TEXT    NOT NULL DEFAULT 'pre_reserva'
                    CHECK (status IN ('pre_reserva', 'confirmada',
                                      'realizada', 'cancelada')),
@@ -53,7 +65,11 @@ CREATE TABLE IF NOT EXISTS reserva (
     CHECK (hora_inicio >= '09:00'),
     CHECK (hora_fim    <= '19:00'),
     CHECK (hora_inicio <  hora_fim),
-    CHECK (valor_sinal <= valor_total)
+    CHECK (valor_total IS NULL OR valor_sinal <= valor_total),
+    -- Fora da pré-reserva, os dados da festa são obrigatórios
+    CHECK (status = 'pre_reserva'
+           OR (tipo_festa IS NOT NULL AND num_convidados IS NOT NULL
+               AND valor_total IS NOT NULL))
 ) STRICT;
 
 -- REGRA PRINCIPAL: apenas UMA festa por dia.
@@ -87,6 +103,16 @@ CREATE TABLE IF NOT EXISTS pagamento (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS ix_pagamento_reserva ON pagamento (id_reserva);
+
+-- Trigger: regra que o banco executa sozinho a cada INSERT em pagamento.
+-- Impede receber dinheiro de uma pré-reserva sem valor combinado
+-- (sem valor_total não dá para calcular o saldo).
+CREATE TRIGGER IF NOT EXISTS tg_pagamento_exige_dados
+BEFORE INSERT ON pagamento
+WHEN (SELECT valor_total FROM reserva WHERE id = NEW.id_reserva) IS NULL
+BEGIN
+    SELECT RAISE(ABORT, 'reserva_sem_dados_completos');
+END;
 
 -- -------------------------------------------------------------
 -- Usuario: quem pode entrar no sistema (login)

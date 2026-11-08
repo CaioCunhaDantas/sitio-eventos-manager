@@ -94,6 +94,80 @@ class TestRepositorio(unittest.TestCase):
         cliente = repo.listar_clientes("Ana")[0]
         self.assertEqual((cliente["nome"], cliente["email"]), ("Ana Maria", "ana@x.com"))
 
+    def test_endereco_do_cliente_e_busca_por_bairro(self):
+        repo.criar_cliente("Bruno", "2188", endereco="Rua A, 10", bairro="Tijuca",
+                           cidade="Rio de Janeiro")
+        bruno = repo.listar_clientes("tijuca")[0]
+        self.assertEqual(bruno["nome"], "Bruno")
+        self.assertTrue(repo.endereco_completo(bruno))
+        self.assertFalse(repo.endereco_completo(repo.listar_clientes("Ana")[0]))
+
+    # --- pré-reserva ---
+    def test_pre_reserva_so_com_o_dia_segura_a_data(self):
+        repo.criar_reserva(self.cliente, DIA)  # sem tipo, convidados nem valor
+        pre = repo.reserva_na_data(DIA)
+        self.assertEqual(pre["status"], "pre_reserva")
+        self.assertIsNone(pre["valor_total"])
+        with self.assertRaises(repo.DataOcupadaError):
+            self.nova_reserva()
+
+    def test_pre_reserva_incompleta_nao_recebe_pagamento(self):
+        id_pre = repo.criar_reserva(self.cliente, DIA)
+        with self.assertRaises(repo.DadosIncompletosError):
+            repo.registrar_pagamento(id_pre, 10_000, DIA, "sinal", "pix")
+
+    def test_pre_reserva_incompleta_nao_pode_ser_confirmada(self):
+        id_pre = repo.criar_reserva(self.cliente, DIA)
+        with self.assertRaises(repo.DadosIncompletosError):
+            repo.atualizar_reserva(id_pre, DIA, "09:00", "19:00", None, None, None, 0,
+                                   "confirmada")
+
+    def test_completar_pre_reserva_e_pagar_sinal(self):
+        id_pre = repo.criar_reserva(self.cliente, DIA)
+        repo.atualizar_reserva(id_pre, DIA, "10:00", "18:00", "Casamento", 100,
+                               500_000, 150_000, "pre_reserva")
+        repo.registrar_pagamento(id_pre, 150_000, DIA, "sinal", "pix")
+        self.assertEqual(repo.reserva_na_data(DIA)["status"], "confirmada")
+        self.assertEqual(repo.total_a_receber(), 350_000)
+
+
+class TestMigracao(unittest.TestCase):
+    """Um banco criado na versão 1 precisa ser atualizado sem perder dados."""
+
+    def test_banco_v1_e_migrado_para_versao_atual(self):
+        from database.migracoes import VERSAO_ATUAL
+
+        CAMINHO_BANCO.unlink(missing_ok=True)
+        schema_v1 = (Path(__file__).parent / "schema_v1.sql").read_text(encoding="utf-8")
+        antigo = sqlite3.connect(CAMINHO_BANCO)
+        antigo.executescript(schema_v1)
+        antigo.execute("INSERT INTO cliente (nome, telefone) VALUES ('Ana', '2199')")
+        antigo.execute(
+            "INSERT INTO reserva (id_cliente, data_festa, hora_inicio, hora_fim, tipo_festa,"
+            " num_convidados, valor_total, valor_sinal, status)"
+            " VALUES (1, '2030-05-18', '10:00', '18:00', 'X', 10, 1000, 0, 'confirmada')"
+        )
+        antigo.execute("INSERT INTO pagamento (id_reserva, valor, data_pagamento, tipo,"
+                       " forma_pagamento) VALUES (1, 500, '2030-01-01', 'sinal', 'pix')")
+        antigo.commit()
+        antigo.close()
+
+        criar_banco()  # deve aplicar a migração
+
+        conexao = sqlite3.connect(CAMINHO_BANCO)
+        self.assertEqual(conexao.execute("PRAGMA user_version").fetchone()[0], VERSAO_ATUAL)
+        self.assertEqual(conexao.execute("PRAGMA foreign_key_check").fetchall(), [])
+        conexao.close()
+
+        reserva = repo.reserva_na_data(DIA)
+        self.assertEqual((reserva["cliente"], reserva["total_pago"]), ("Ana", 500))
+        # Colunas novas existem e a pré-reserva incompleta passou a ser aceita
+        repo.criar_cliente("Bruno", "2188", bairro="Centro")
+        repo.criar_reserva(1, date(2030, 6, 1))
+        # A regra de uma festa por dia continua valendo depois da migração
+        with self.assertRaises(repo.DataOcupadaError):
+            repo.criar_reserva(1, DIA)
+
 
 if __name__ == "__main__":
     unittest.main()

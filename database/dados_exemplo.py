@@ -32,10 +32,19 @@ def main() -> None:
     definir_senha("Demonstração", SENHA_DEMO)
 
     hoje = date.today()
-    ana = repo.criar_cliente("Ana Souza", "21 99999-0000", observacoes="Indicação da vizinha")
-    bruno = repo.criar_cliente("Bruno Lima", "21 98888-1111", "bruno@exemplo.com")
-    carla = repo.criar_cliente("Carla Mendes", "21 97777-2222")
-    daniel = repo.criar_cliente("Daniel Rocha", "21 96666-3333")
+    ana = repo.criar_cliente("Ana Souza", "21 99999-0000", observacoes="Indicação da vizinha",
+                             endereco="Rua das Flores, 120", bairro="Tijuca",
+                             cidade="Rio de Janeiro")
+    bruno = repo.criar_cliente("Bruno Lima", "21 98888-1111", "bruno@exemplo.com",
+                               endereco="Av. Central, 45", bairro="Centro", cidade="Niterói")
+    carla = repo.criar_cliente("Carla Mendes", "21 97777-2222",
+                               endereco="Rua do Sol, 8", bairro="Campo Grande",
+                               cidade="Rio de Janeiro")
+    daniel = repo.criar_cliente("Daniel Rocha", "21 96666-3333",
+                                endereco="Estrada Velha, 300", bairro="Guaratiba",
+                                cidade="Rio de Janeiro")
+    # Cliente de pré-reserva: só nome e telefone
+    eduarda = repo.criar_cliente("Eduarda Lopes", "21 95555-4444")
 
     # Festa que já passou e ainda tem saldo (aparece como atrasada)
     r1 = repo.criar_reserva(carla, hoje - timedelta(days=6), "12:00", "18:00", "Batizado",
@@ -56,6 +65,10 @@ def main() -> None:
                             40, 180_000, 54_000)
     repo.registrar_pagamento(r3, 54_000, hoje - timedelta(days=30), "sinal", "pix")
     repo.registrar_pagamento(r3, 126_000, hoje - timedelta(days=2), "quitacao", "pix")
+
+    # Pré-reserva: interesse, sem sinal e sem os dados da festa
+    repo.criar_reserva(eduarda, hoje + timedelta(days=16),
+                       observacoes="Ligou perguntando; vai confirmar com a família")
 
     # Festa no mês seguinte
     repo.criar_reserva(ana, hoje + timedelta(days=35), "10:00", "17:00", "Confraternização",
