@@ -30,6 +30,9 @@ CSS_CALENDARIO = """
 .cal .festa.confirmada { background: #556B2F; color: #FFFFFF; }
 .cal .festa.aguardando { background: #EEF1E6; color: #3A4030; border-left: 3px solid #556B2F; }
 .cal td.passado .festa { opacity: 0.55; }
+/* Sábado e domingo com fundo levemente destacado */
+.cal td.fds { background: #F7F9F1; }
+.cal th.fds { color: #556B2F; }
 .legenda { display: flex; flex-wrap: wrap; gap: 20px; font-size: 0.8rem; color: #6B7160;
            margin-top: 10px; }
 .legenda span::before { content: ""; display: inline-block; width: 10px; height: 10px;
@@ -58,8 +61,29 @@ def mudar_mes(delta: int) -> None:
         st.session_state["desloc_mes"] = st.session_state.get("desloc_mes", 0) + delta
 
 
+def escolher_mes_ano() -> None:
+    """Chamada quando a pessoa troca o mês ou o ano nos seletores.
+
+    Converte a escolha em deslocamento a partir de hoje (o mesmo formato
+    usado pelas setas), assim tudo continua andando junto com o mês atual.
+    """
+    hoje = date.today()
+    escolhido = st.session_state["sel_ano"] * 12 + st.session_state["sel_mes"] - 1
+    st.session_state["desloc_mes"] = escolhido - (hoje.year * 12 + hoje.month - 1)
+
+
+def anos_disponiveis(ano_exibido: int) -> list[int]:
+    """De 2 anos atrás até 5 anos à frente (sempre incluindo o ano exibido)."""
+    hoje = date.today()
+    primeiro = min(hoje.year - 2, ano_exibido)
+    ultimo = max(hoje.year + 5, ano_exibido)
+    return list(range(primeiro, ultimo + 1))
+
+
 def html_celula(dia: date, mes: int, hoje: date, reserva: dict | None) -> str:
     classes = []
+    if dia.weekday() >= 5:  # 5 = sábado, 6 = domingo
+        classes.append("fds")
     if dia.month != mes:
         classes.append("fora")
     if dia < hoje:
@@ -80,8 +104,8 @@ def html_celula(dia: date, mes: int, hoje: date, reserva: dict | None) -> str:
 def calendario_do_mes() -> None:
     hoje = date.today()
     ano, mes = mes_exibido()
-    # Semanas começando no domingo, incluindo dias do mês anterior/seguinte
-    semanas = calendar.Calendar(firstweekday=6).monthdatescalendar(ano, mes)
+    # Semanas começando na segunda (firstweekday=0), incluindo dias do mês anterior/seguinte
+    semanas = calendar.Calendar(firstweekday=0).monthdatescalendar(ano, mes)
     reservas = {r["data_festa"]: r
                 for r in repo.reservas_do_periodo(semanas[0][0], semanas[-1][-1])}
 
@@ -89,13 +113,25 @@ def calendario_do_mes() -> None:
     livres = sum(1 for semana in semanas for d in semana
                  if d.month == mes and d >= hoje and d.isoformat() not in reservas)
 
-    st.subheader(f"{MESES[mes - 1].capitalize()} de {ano}")
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Festas no mês", len(do_mes), border=True)
-    m2.metric("Dias livres no mês", livres, border=True)
-    m3.metric("Falta receber (total)", reais(repo.total_a_receber()), border=True)
+    titulo, hoje_col = st.columns([3, 1.2], vertical_alignment="center")
+    titulo.subheader(f"{MESES[mes - 1].capitalize()} de {ano}")
+    if (ano, mes) != (hoje.year, hoje.month):
+        # Dentro do fragmento, o botão só recarregaria o calendário;
+        # st.rerun() recarrega a tela toda (seletores e lista de festas juntos).
+        if hoje_col.button("Hoje", icon=":material/today:", width="stretch"):
+            mudar_mes(0)
+            st.rerun()
 
-    cabecalho = "".join(f"<th>{d}</th>" for d in ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"])
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Festas", len(do_mes), border=True, help="Festas marcadas neste mês")
+    m2.metric("Dias livres", livres, border=True, help="Dias deste mês, de hoje em diante, sem festa")
+    m3.metric("A receber", reais(repo.total_a_receber()), border=True,
+              help="Quanto falta receber de todas as festas não canceladas")
+
+    cabecalho = "".join(
+        f'<th class="fds">{d}</th>' if d in ("Sáb", "Dom") else f"<th>{d}</th>"
+        for d in ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+    )
     linhas = "".join(
         "<tr>" + "".join(html_celula(d, mes, hoje, reservas.get(d.isoformat())) for d in semana) + "</tr>"
         for semana in semanas
@@ -181,13 +217,22 @@ def detalhes_da_festa(r: dict) -> None:
 st.title("Calendário")
 mostrar_aviso()
 
-b1, b2, b3 = st.columns(3)
-b1.button("Mês anterior", icon=":material/chevron_left:", on_click=mudar_mes, args=(-1,),
-          width="stretch")
-b2.button("Voltar para hoje", icon=":material/today:", on_click=mudar_mes, args=(0,),
-          width="stretch")
-b3.button("Próximo mês", icon=":material/chevron_right:", on_click=mudar_mes, args=(1,),
-          width="stretch")
+# Os seletores sempre mostram o mês exibido: o valor é colocado no
+# session_state ANTES de o seletor ser desenhado (por isso não usamos index=).
+ano_atual_exibido, mes_atual_exibido = mes_exibido()
+st.session_state["sel_mes"] = mes_atual_exibido
+st.session_state["sel_ano"] = ano_atual_exibido
+
+b_ant, s_mes, s_ano, b_prox = st.columns([0.7, 2, 1.4, 0.7], vertical_alignment="bottom")
+# Setas só com ícone (o texto aparece ao passar o mouse, pelo help=)
+b_ant.button("", icon=":material/chevron_left:", help="Mês anterior", on_click=mudar_mes,
+             args=(-1,), width="stretch")
+s_mes.selectbox("Mês", list(range(1, 13)), format_func=lambda m: MESES[m - 1].capitalize(),
+                key="sel_mes", on_change=escolher_mes_ano)
+s_ano.selectbox("Ano", anos_disponiveis(ano_atual_exibido), key="sel_ano",
+                on_change=escolher_mes_ano)
+b_prox.button("", icon=":material/chevron_right:", help="Próximo mês", on_click=mudar_mes,
+              args=(1,), width="stretch")
 
 calendario_do_mes()
 

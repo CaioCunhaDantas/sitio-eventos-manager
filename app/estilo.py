@@ -21,6 +21,10 @@ button[data-testid^="stBaseButton"] p {
 [data-testid="stTopNavLink"] span {
     font-size: 1.25rem !important;
 }
+/* Número dos cartões (ex.: "Falta receber") um pouco menor, para caber inteiro */
+[data-testid="stMetricValue"] > div {
+    font-size: 1.5rem;
+}
 /* Títulos mais leves */
 h1 { font-weight: 600 !important; letter-spacing: -0.01em; }
 h2, h3 { font-weight: 600 !important; }
