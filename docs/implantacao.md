@@ -103,6 +103,14 @@ Deixe o Tailscale do celular sempre ligado. Ele roda em segundo plano.
 
 ## Dia a dia
 
+**Desligar e ligar o sistema** (PowerShell como Administrador):
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\SitioFestas\scripts\desligar_sistema.ps1
+powershell -ExecutionPolicy Bypass -File C:\SitioFestas\scripts\ligar_sistema.ps1
+```
+Desligado, ele volta sozinho quando o computador reiniciar.
+Para tirar o "ligar sozinho" de vez: `scripts\remover_servico.ps1`.
+
 **Onde estão os logs?** Em `C:\SitioFestas\logs\`:
 
 | Arquivo | Conteúdo |
